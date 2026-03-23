@@ -96,4 +96,16 @@ program
     await validate(files, opts);
   });
 
+// Docs generation
+program
+  .command('docs')
+  .description('Generate design system documentation website')
+  .option('--output <dir>', 'Output directory', '.morphic/docs')
+  .option('--serve', 'Start a local preview server')
+  .option('--port <port>', 'Server port', '4321')
+  .action(async (opts) => {
+    const { generateDocs } = await import('./docs/docs-generator');
+    await generateDocs({ output: opts.output, serve: opts.serve, port: parseInt(opts.port) });
+  });
+
 program.parse();
