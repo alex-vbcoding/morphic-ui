@@ -128,7 +128,7 @@ module.exports = nextConfig;
 };
 `);
 
-  // tailwind.config.ts
+  // tailwind.config.ts — includes all design tokens from context
   writeFile(dir, 'tailwind.config.ts', `import type { Config } from "tailwindcss";
 
 const config: Config = {
@@ -144,6 +144,14 @@ const config: Config = {
         "primary-hover": "#1D4ED8",
         secondary: "#64748B",
         "secondary-hover": "#475569",
+        success: "#22C55E",
+        warning: "#F59E0B",
+        error: "#EF4444",
+        background: "#FFFFFF",
+        "background-secondary": "#F8FAFC",
+        foreground: "#0F172A",
+        "foreground-muted": "#64748B",
+        border: "#E2E8F0",
       },
     },
   },
@@ -170,8 +178,8 @@ next-env.d.ts
 @tailwind utilities;
 
 :root {
-  --foreground: #0f172a;
-  --background: #ffffff;
+  --foreground: var(--token-foreground, #0f172a);
+  --background: var(--token-background, #ffffff);
 }
 
 body {
@@ -208,14 +216,14 @@ export default function RootLayout({
     <main className="min-h-screen">
       {/* Hero */}
       <section className="flex flex-col items-center justify-center px-4 py-24 text-center">
-        <span className="mb-4 inline-block rounded-full bg-blue-100 px-4 py-1.5 text-sm font-semibold text-primary">
+        <span className="mb-4 inline-block rounded-full bg-primary/10 px-4 py-1.5 text-sm font-semibold text-primary">
           Built with Morphic
         </span>
         <h1 className="max-w-3xl text-5xl font-bold tracking-tight sm:text-6xl">
           Ship beautiful UIs
           <span className="text-primary"> faster</span>
         </h1>
-        <p className="mt-6 max-w-2xl text-lg text-gray-600">
+        <p className="mt-6 max-w-2xl text-lg text-secondary">
           AI-powered design guardrails ensure consistency, accessibility, and best practices across your entire codebase.
         </p>
         <div className="mt-10 flex gap-4">
@@ -239,7 +247,7 @@ export default function RootLayout({
         <h2 id="features-heading" className="text-center text-3xl font-bold">
           Everything you need
         </h2>
-        <p className="mx-auto mt-4 max-w-2xl text-center text-gray-600">
+        <p className="mx-auto mt-4 max-w-2xl text-center text-secondary">
           Morphic provides guardrails so LLMs generate consistent, accessible UI code every time.
         </p>
         <div className="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
@@ -254,7 +262,7 @@ export default function RootLayout({
             <div key={feature.title} className="rounded-xl border border-gray-200 p-8 hover:shadow-md transition-shadow">
               <span className="text-3xl" aria-hidden="true">{feature.icon}</span>
               <h3 className="mt-4 text-xl font-semibold">{feature.title}</h3>
-              <p className="mt-2 text-gray-600">{feature.desc}</p>
+              <p className="mt-2 text-secondary">{feature.desc}</p>
             </div>
           ))}
         </div>
@@ -263,12 +271,12 @@ export default function RootLayout({
       {/* CTA */}
       <section className="bg-primary px-4 py-24 text-center text-white">
         <h2 className="text-3xl font-bold">Ready to ship?</h2>
-        <p className="mx-auto mt-4 max-w-xl text-blue-100">
+        <p className="mx-auto mt-4 max-w-xl opacity-90">
           Start building with confidence. Morphic ensures every pixel is intentional.
         </p>
         <a
           href="/pricing"
-          className="mt-8 inline-block rounded-lg bg-white px-8 py-3 font-semibold text-primary hover:bg-blue-50 transition-colors"
+          className="mt-8 inline-block rounded-lg bg-white px-8 py-3 font-semibold text-primary hover:bg-gray-50 transition-colors"
         >
           View Pricing
         </a>
@@ -335,7 +343,7 @@ export default function PricingPage() {
               }\`}
             >
               {plan.highlighted && (
-                <span className="mb-4 inline-block self-start rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-primary">
+                <span className="mb-4 inline-block self-start rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">
                   Most Popular
                 </span>
               )}

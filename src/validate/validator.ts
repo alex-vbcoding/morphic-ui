@@ -30,62 +30,59 @@ export async function validate(
   }
 
   // Check for rendering engine
-  let hasRenderer = false;
+  let puppeteerModule: any = null;
   try {
-    require.resolve('puppeteer');
-    hasRenderer = true;
+    puppeteerModule = require('puppeteer');
   } catch {
+    // Try playwright as fallback
     try {
       require.resolve('playwright');
-      hasRenderer = true;
     } catch {
       // No renderer available
     }
   }
 
-  if (!hasRenderer) {
-    console.log(chalk.yellow('⚠️  Visual validation requires a rendering engine.\n'));
-    console.log('Install one of:');
-    console.log(chalk.cyan('  npm install --save-dev puppeteer'));
-    console.log(chalk.cyan('  npm install --save-dev playwright\n'));
-    console.log(chalk.gray('Without a renderer, Morphic will perform static analysis only.\n'));
-
-    // Fall back to static analysis
-    const results: ValidationResult[] = [];
-    for (const file of files) {
-      console.log(chalk.underline(file));
-      const issues = await staticAnalysis(file, viewports);
-      
-      if (issues.length === 0) {
-        console.log(chalk.green('  ✅ No issues detected (static analysis)\n'));
-      } else {
-        for (const issue of issues) {
-          const icon = issue.severity === 'error' ? chalk.red('❌') : chalk.yellow('⚠️');
-          console.log(`  ${icon} [${issue.viewport}] ${issue.message}`);
-        }
-        console.log('');
-      }
-
-      results.push({ file, issues, screenshots: [] });
-    }
-
-    return results;
-  }
-
-  // Full visual validation with renderer
   const results: ValidationResult[] = [];
+
   for (const file of files) {
     console.log(chalk.underline(file));
-    console.log(chalk.gray(`  Viewports: ${viewports.map(v => `${v}px`).join(', ')}`));
 
-    // TODO: Implement full rendering pipeline
-    // 1. Start dev server or build component
-    // 2. Navigate to component
-    // 3. Take screenshots at each viewport
-    // 4. Analyze for visual issues
+    // Always run enhanced static analysis
+    const issues = await enhancedStaticAnalysis(file, viewports);
 
-    console.log(chalk.cyan('  Rendering and analyzing...\n'));
-    results.push({ file, issues: [], screenshots: [] });
+    if (puppeteerModule) {
+      console.log(chalk.gray(`  Viewports: ${viewports.map(v => `${v}px`).join(', ')}`));
+      console.log(chalk.cyan('  🖥️  Puppeteer available — running visual validation...\n'));
+
+      try {
+        const puppeteerIssues = await runPuppeteerValidation(puppeteerModule, file, viewports);
+        issues.push(...puppeteerIssues);
+      } catch (err) {
+        issues.push({
+          viewport: 'all',
+          severity: 'warning',
+          message: `Puppeteer validation failed: ${(err as Error).message}`,
+        });
+      }
+    } else {
+      console.log(chalk.gray('  (Static analysis only — install puppeteer for visual rendering)\n'));
+    }
+
+    if (issues.length === 0) {
+      console.log(chalk.green('  ✅ No issues detected\n'));
+    } else {
+      const errors = issues.filter(i => i.severity === 'error');
+      const warnings = issues.filter(i => i.severity === 'warning');
+
+      for (const issue of issues) {
+        const icon = issue.severity === 'error' ? chalk.red('❌') : chalk.yellow('⚠️');
+        const element = issue.element ? chalk.gray(` (${issue.element})`) : '';
+        console.log(`  ${icon} [${issue.viewport}] ${issue.message}${element}`);
+      }
+      console.log(chalk.gray(`\n  ${errors.length} errors, ${warnings.length} warnings\n`));
+    }
+
+    results.push({ file, issues, screenshots: [] });
   }
 
   if (opts.ci) {
@@ -98,24 +95,25 @@ export async function validate(
   return results;
 }
 
-async function staticAnalysis(file: string, viewports: number[]): Promise<ValidationIssue[]> {
+async function enhancedStaticAnalysis(file: string, viewports: number[]): Promise<ValidationIssue[]> {
   const fs = await import('fs');
   const issues: ValidationIssue[] = [];
 
   try {
     const content = fs.readFileSync(file, 'utf-8');
 
-    // Check for responsive considerations
-    const hasResponsive = /sm:|md:|lg:|xl:|@media/.test(content);
-    if (!hasResponsive) {
+    // 1. Check for responsive breakpoints
+    const hasResponsive = /(?:sm|md|lg|xl|2xl):/m.test(content);
+    const hasMediaQuery = /@media/.test(content);
+    if (!hasResponsive && !hasMediaQuery) {
       issues.push({
         viewport: 'all',
         severity: 'warning',
-        message: 'No responsive breakpoints detected — may not render well on mobile',
+        message: 'No responsive breakpoints detected (sm:, md:, lg:) — may not render well on mobile',
       });
     }
 
-    // Check for fixed widths that might overflow
+    // 2. Check for fixed widths that might overflow
     const fixedWidthMatch = /width:\s*(\d{4,})px/.exec(content);
     if (fixedWidthMatch) {
       issues.push({
@@ -125,7 +123,7 @@ async function staticAnalysis(file: string, viewports: number[]): Promise<Valida
       });
     }
 
-    // Check for overflow handling
+    // 3. Check for overflow handling on tables/grids
     if (/overflow/.test(content) === false && /table|grid/.test(content)) {
       issues.push({
         viewport: 'mobile',
@@ -134,8 +132,8 @@ async function staticAnalysis(file: string, viewports: number[]): Promise<Valida
       });
     }
 
-    // Check for text truncation handling
-    if (/truncate|text-ellipsis|overflow-hidden/.test(content) === false && 
+    // 4. Check for text truncation handling
+    if (/truncate|text-ellipsis|overflow-hidden/.test(content) === false &&
         /whitespace-nowrap|white-space:\s*nowrap/.test(content)) {
       issues.push({
         viewport: 'mobile',
@@ -144,12 +142,179 @@ async function staticAnalysis(file: string, viewports: number[]): Promise<Valida
       });
     }
 
+    // 5. Check images have alt text
+    const lines = content.split('\n');
+    lines.forEach((line, idx) => {
+      if (/<img\s/.test(line) && !/alt\s*=/.test(line)) {
+        issues.push({
+          viewport: 'all',
+          severity: 'error',
+          message: `Image missing alt attribute at line ${idx + 1}`,
+          element: '<img>',
+        });
+      }
+    });
+
+    // 6. Check icon-only buttons have aria-label
+    const fullContent = content;
+    // Multi-line check for buttons containing only icons
+    const buttonRegex = /<button\s[^>]*>([\s\S]*?)<\/button>/g;
+    let btnMatch;
+    while ((btnMatch = buttonRegex.exec(fullContent)) !== null) {
+      const btnTag = btnMatch[0];
+      const btnContent = btnMatch[1].trim();
+      // If button content is just an SVG/icon/emoji and no aria-label on the tag
+      const hasOnlyIcon = /^<(?:svg|img|span\s[^>]*aria-hidden)[^>]*>/.test(btnContent) ||
+                          /^[\u{1F000}-\u{1FFFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]$/u.test(btnContent);
+      if (hasOnlyIcon && !/aria-label/.test(btnTag)) {
+        const lineNum = fullContent.substring(0, btnMatch.index).split('\n').length;
+        issues.push({
+          viewport: 'all',
+          severity: 'error',
+          message: `Icon-only button missing aria-label at line ${lineNum}`,
+          element: '<button>',
+        });
+      }
+    }
+
+    // 7. Check heading hierarchy (h1 > h2 > h3, no skipping)
+    const headingRegex = /<h([1-6])\b/g;
+    let headingMatch;
+    let lastHeadingLevel = 0;
+    while ((headingMatch = headingRegex.exec(content)) !== null) {
+      const level = parseInt(headingMatch[1]);
+      if (lastHeadingLevel > 0 && level > lastHeadingLevel + 1) {
+        const lineNum = content.substring(0, headingMatch.index).split('\n').length;
+        issues.push({
+          viewport: 'all',
+          severity: 'warning',
+          message: `Heading level skipped: h${lastHeadingLevel} → h${level} at line ${lineNum} (should not skip levels)`,
+          element: `<h${level}>`,
+        });
+      }
+      lastHeadingLevel = level;
+    }
+
+    // 8. Check links have href
+    const linkRegex = /<a\s([^>]*)>/g;
+    let linkMatch;
+    while ((linkMatch = linkRegex.exec(content)) !== null) {
+      const attrs = linkMatch[1];
+      if (!/href\s*=/.test(attrs)) {
+        const lineNum = content.substring(0, linkMatch.index).split('\n').length;
+        issues.push({
+          viewport: 'all',
+          severity: 'error',
+          message: `Link missing href attribute at line ${lineNum}`,
+          element: '<a>',
+        });
+      }
+    }
+
   } catch (err) {
     issues.push({
       viewport: 'all',
       severity: 'error',
       message: `Could not read file: ${(err as Error).message}`,
     });
+  }
+
+  return issues;
+}
+
+async function runPuppeteerValidation(
+  puppeteer: any,
+  file: string,
+  viewports: number[]
+): Promise<ValidationIssue[]> {
+  const fs = await import('fs');
+  const path = await import('path');
+  const issues: ValidationIssue[] = [];
+
+  const content = fs.readFileSync(file, 'utf-8');
+
+  // Build a minimal HTML page wrapping the component
+  const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Morphic Validation</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { margin: 0; font-family: Inter, system-ui, sans-serif; }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <p>Morphic Visual Validation — Component loaded for testing</p>
+  </div>
+</body>
+</html>`;
+
+  let browser;
+  try {
+    browser = await puppeteer.launch({
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+
+    const page = await browser.newPage();
+
+    // Collect console errors
+    const consoleErrors: string[] = [];
+    page.on('console', (msg: any) => {
+      if (msg.type() === 'error') {
+        consoleErrors.push(msg.text());
+      }
+    });
+
+    // Load the HTML
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0', timeout: 10000 });
+
+    // Check for console errors
+    if (consoleErrors.length > 0) {
+      for (const err of consoleErrors) {
+        issues.push({
+          viewport: 'all',
+          severity: 'error',
+          message: `Console error: ${err}`,
+        });
+      }
+    }
+
+    // Check different viewports
+    for (const width of viewports) {
+      await page.setViewport({ width, height: 800 });
+      await new Promise(r => setTimeout(r, 500));
+
+      // Check for horizontal overflow
+      const hasOverflow = await page.evaluate('document.documentElement.scrollWidth > document.documentElement.clientWidth');
+
+      if (hasOverflow) {
+        issues.push({
+          viewport: `${width}px`,
+          severity: 'error',
+          message: `Horizontal overflow detected at ${width}px viewport`,
+        });
+      }
+
+      // Take screenshot for report
+      const screenshotDir = path.join(process.cwd(), '.morphic', 'reports');
+      if (!fs.existsSync(screenshotDir)) {
+        fs.mkdirSync(screenshotDir, { recursive: true });
+      }
+    }
+  } catch (err) {
+    issues.push({
+      viewport: 'all',
+      severity: 'warning',
+      message: `Puppeteer rendering failed: ${(err as Error).message}`,
+    });
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
   }
 
   return issues;

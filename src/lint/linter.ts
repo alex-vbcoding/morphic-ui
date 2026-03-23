@@ -46,9 +46,17 @@ function checkHardcodedColors(content: string, file: string, context: any): Lint
   // Skip CSS variable definitions and tailwind config
   if (file.endsWith('.config.js') || file.endsWith('.config.ts')) return issues;
 
+  const isCssFile = file.endsWith('.css') || file.endsWith('.scss');
+
   lines.forEach((line, idx) => {
     // Skip comments and imports
     if (line.trim().startsWith('//') || line.trim().startsWith('*') || line.trim().startsWith('import')) return;
+
+    // Skip CSS custom property definitions (e.g. --foreground: ...; or --token-xxx: ...)
+    if (isCssFile && /^\s*--[\w-]+\s*:/.test(line)) return;
+
+    // Skip var() fallback values in CSS (e.g. var(--token-foreground, #0f172a))
+    if (isCssFile && /var\(--[\w-]+,\s*#[0-9a-fA-F]{6}\)/.test(line)) return;
 
     let match;
     while ((match = hexPattern.exec(line)) !== null) {
@@ -72,7 +80,7 @@ function checkHardcodedColors(content: string, file: string, context: any): Lint
   return issues;
 }
 
-// Rule: Spacing consistency
+// Rule: Spacing consistency (inline CSS)
 function checkSpacing(content: string, file: string, context: any): LintIssue[] {
   const issues: LintIssue[] = [];
   const lines = content.split('\n');
@@ -175,6 +183,165 @@ function checkInlineStyles(content: string, file: string): LintIssue[] {
   return issues;
 }
 
+// Rule: Check Tailwind color classes against design tokens
+function checkTailwindTokens(content: string, file: string, context: any): LintIssue[] {
+  const issues: LintIssue[] = [];
+
+  // Only check JSX/TSX files
+  if (!file.endsWith('.tsx') && !file.endsWith('.jsx')) return issues;
+
+  const tokenColorKeys = new Set(Object.keys(context?.tokens?.colors || {}));
+
+  // Always-allowed color names in Tailwind classes
+  const alwaysAllowed = new Set(['white', 'black', 'transparent', 'current', 'inherit']);
+
+  // Tailwind named color families that are NOT token-based
+  const namedColorFamilies = [
+    'red', 'orange', 'amber', 'yellow', 'lime', 'green', 'emerald', 'teal',
+    'cyan', 'sky', 'blue', 'indigo', 'violet', 'purple', 'fuchsia', 'pink', 'rose',
+    'slate', 'zinc', 'neutral', 'stone',
+  ];
+
+  // Gray shades get warning instead of error
+  const grayFamily = 'gray';
+
+  // Color utility prefixes
+  const colorPrefixes = [
+    'bg', 'text', 'border', 'ring', 'outline', 'shadow',
+    'from', 'via', 'to', 'divide', 'placeholder',
+    'decoration', 'accent', 'caret', 'fill', 'stroke',
+  ];
+
+  // Build regex to match Tailwind color classes
+  // Match patterns like: bg-blue-600, text-red-500, border-green-300, hover:bg-blue-500, focus:text-red-400
+  const prefixGroup = colorPrefixes.join('|');
+  const colorClassPattern = new RegExp(
+    `(?:^|\\s|"|'|\`)(?:(?:hover|focus|active|disabled|group-hover|focus-within|focus-visible|dark|sm|md|lg|xl|2xl):)*(?:${prefixGroup})-(\\w[\\w-]*)(?=\\s|"|'|\`|$)`,
+    'g'
+  );
+
+  const lines = content.split('\n');
+
+  lines.forEach((line, idx) => {
+    // Skip comments and imports
+    if (line.trim().startsWith('//') || line.trim().startsWith('*') || line.trim().startsWith('import')) return;
+
+    // Only look inside className strings
+    const classNameMatches = line.matchAll(/className\s*=\s*(?:{[^}]*["`']([^"`']*)["`'][^}]*}|"([^"]*)"|'([^']*)'|{`([^`]*)`})/g);
+
+    for (const cm of classNameMatches) {
+      const classString = cm[1] || cm[2] || cm[3] || cm[4] || '';
+      if (!classString) continue;
+
+      // Extract individual classes
+      const classes = classString.split(/\s+/);
+
+      for (const cls of classes) {
+        // Strip responsive/state prefixes
+        const baseCls = cls.replace(/^(?:(?:hover|focus|active|disabled|group-hover|focus-within|focus-visible|dark|sm|md|lg|xl|2xl):)*/, '');
+
+        // Check if it's a color utility
+        const colorMatch = baseCls.match(new RegExp(`^(?:${prefixGroup})-(.+)$`));
+        if (!colorMatch) continue;
+
+        const colorName = colorMatch[1];
+
+        // Always allowed
+        if (alwaysAllowed.has(colorName)) continue;
+
+        // Token color — allowed
+        if (tokenColorKeys.has(colorName)) continue;
+
+        // Check if it's a named Tailwind color (e.g. blue-600, red-500)
+        const namedMatch = colorName.match(/^(\w+)-(\d+)$/);
+        if (namedMatch) {
+          const family = namedMatch[1];
+
+          // Gray shades — warning (common neutral colors)
+          if (family === grayFamily) {
+            issues.push({
+              file,
+              line: idx + 1,
+              column: 1,
+              severity: 'warning',
+              rule: 'tailwind-token-colors',
+              message: `Gray shade "${baseCls}" — consider using a token like "foreground-muted" or "border" for consistency`,
+            });
+            continue;
+          }
+
+          // Other named colors — warning (should use tokens)
+          if (namedColorFamilies.includes(family)) {
+            issues.push({
+              file,
+              line: idx + 1,
+              column: 1,
+              severity: 'warning',
+              rule: 'tailwind-token-colors',
+              message: `Non-token color class "${baseCls}" — use a design token class (e.g. bg-primary, text-foreground) instead`,
+            });
+            continue;
+          }
+        }
+
+        // Check for standalone color families without shade (e.g. bg-blue, text-red) — unlikely but possible
+        if (namedColorFamilies.includes(colorName) || colorName === grayFamily) {
+          issues.push({
+            file,
+            line: idx + 1,
+            column: 1,
+            severity: 'warning',
+            rule: 'tailwind-token-colors',
+            message: `Non-token color class "${baseCls}" — use a design token class instead`,
+          });
+        }
+      }
+    }
+  });
+
+  return issues;
+}
+
+// Rule: Check arbitrary spacing values in Tailwind classes
+function checkArbitrarySpacing(content: string, file: string, context: any): LintIssue[] {
+  const issues: LintIssue[] = [];
+
+  // Only check JSX/TSX files
+  if (!file.endsWith('.tsx') && !file.endsWith('.jsx')) return issues;
+
+  const spacingScale = context?.tokens?.spacing || [];
+
+  const lines = content.split('\n');
+
+  // Pattern: p-[13px], m-[22px], gap-[15px], px-[10px], mt-[30px], etc.
+  const arbitraryPattern = /(?:^|[\s"'`])(?:(?:hover|focus|active|disabled|dark|sm|md|lg|xl|2xl):)*(?:p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|gap|gap-x|gap-y|space-x|space-y|inset|top|right|bottom|left|w|h|min-w|min-h|max-w|max-h)-\[(\d+)px\]/g;
+
+  lines.forEach((line, idx) => {
+    if (line.trim().startsWith('//') || line.trim().startsWith('*') || line.trim().startsWith('import')) return;
+
+    let match;
+    while ((match = arbitraryPattern.exec(line)) !== null) {
+      const value = parseInt(match[1]);
+      if (spacingScale.length > 0 && !spacingScale.includes(value)) {
+        const closest = spacingScale.reduce((prev: number, curr: number) =>
+          Math.abs(curr - value) < Math.abs(prev - value) ? curr : prev
+        );
+        issues.push({
+          file,
+          line: idx + 1,
+          column: match.index + 1,
+          severity: 'warning',
+          rule: 'arbitrary-spacing',
+          message: `Arbitrary spacing value "${value}px" not in spacing scale — closest: ${closest}px. Use Tailwind's spacing utilities instead.`,
+          fix: `Consider using a standard spacing value (${closest}px)`,
+        });
+      }
+    }
+  });
+
+  return issues;
+}
+
 export async function runLint(
   paths: string[],
   opts: { fix?: boolean; format?: string; rules?: string; ignore?: string }
@@ -205,6 +372,8 @@ export async function runLint(
         ...checkSpacing(content, relFile, context),
         ...checkAccessibility(content, relFile),
         ...checkInlineStyles(content, relFile),
+        ...checkTailwindTokens(content, relFile, context),
+        ...checkArbitrarySpacing(content, relFile, context),
       ];
 
       allIssues.push(...issues);

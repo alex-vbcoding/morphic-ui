@@ -83,7 +83,8 @@ export async function generate(opts: { page?: string; component?: string; list?:
   }
 }
 
-// Template generators
+// Template generators — all use design token classes (bg-primary, text-secondary, etc.)
+// Gray shades (text-gray-600, border-gray-200, bg-gray-50) are acceptable neutral colors.
 function generateLandingPage(stack: string): string {
   return `import React from 'react';
 
@@ -103,12 +104,12 @@ export default function LandingPage({
         <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
           {title}
         </h1>
-        <p className="mt-6 max-w-2xl text-lg text-gray-600">
+        <p className="mt-6 max-w-2xl text-lg text-secondary">
           {subtitle}
         </p>
         <div className="mt-10 flex gap-4">
           <button
-            className="rounded-lg bg-blue-600 px-6 py-3 text-base font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+            className="rounded-lg bg-primary px-6 py-3 text-base font-semibold text-white shadow-sm hover:bg-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             aria-label="Get started with our product"
           >
             Get Started
@@ -131,7 +132,7 @@ export default function LandingPage({
           {[1, 2, 3].map((i) => (
             <div key={i} className="rounded-xl border border-gray-200 p-8">
               <h3 className="text-xl font-semibold">Feature {i}</h3>
-              <p className="mt-4 text-gray-600">
+              <p className="mt-4 text-secondary">
                 Description of feature {i} and how it helps users.
               </p>
             </div>
@@ -191,7 +192,7 @@ export default function PricingPage({ plans = defaultPlans }: PricingPageProps) 
       <div className="mx-auto max-w-7xl">
         <div className="text-center">
           <h1 className="text-4xl font-bold">Simple, Transparent Pricing</h1>
-          <p className="mt-4 text-lg text-gray-600">
+          <p className="mt-4 text-lg text-secondary">
             Choose the plan that fits your needs
           </p>
         </div>
@@ -202,17 +203,17 @@ export default function PricingPage({ plans = defaultPlans }: PricingPageProps) 
               key={plan.name}
               className={\`rounded-2xl border p-8 \${
                 plan.highlighted
-                  ? 'border-blue-600 ring-2 ring-blue-600 shadow-lg'
+                  ? 'border-primary ring-2 ring-primary shadow-lg'
                   : 'border-gray-200'
               }\`}
             >
               {plan.highlighted && (
-                <span className="mb-4 inline-block rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-600">
+                <span className="mb-4 inline-block rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">
                   Most Popular
                 </span>
               )}
               <h2 className="text-2xl font-bold">{plan.name}</h2>
-              <p className="mt-2 text-gray-600">{plan.description}</p>
+              <p className="mt-2 text-secondary">{plan.description}</p>
               <p className="mt-6">
                 <span className="text-4xl font-bold">{plan.price}</span>
                 <span className="text-gray-500">/month</span>
@@ -220,7 +221,7 @@ export default function PricingPage({ plans = defaultPlans }: PricingPageProps) 
               <ul className="mt-8 space-y-3" role="list">
                 {plan.features.map((feature) => (
                   <li key={feature} className="flex items-center gap-3">
-                    <span className="text-green-500" aria-hidden="true">✓</span>
+                    <span className="text-success" aria-hidden="true">✓</span>
                     {feature}
                   </li>
                 ))}
@@ -228,7 +229,7 @@ export default function PricingPage({ plans = defaultPlans }: PricingPageProps) 
               <button
                 className={\`mt-8 w-full rounded-lg px-4 py-3 text-center font-semibold \${
                   plan.highlighted
-                    ? 'bg-blue-600 text-white hover:bg-blue-500'
+                    ? 'bg-primary text-white hover:bg-primary-hover'
                     : 'border border-gray-300 text-gray-900 hover:bg-gray-50'
                 }\`}
                 aria-label={\`\${plan.cta} for \${plan.name} plan\`}
@@ -329,7 +330,7 @@ export default function SettingsPage() {
 
           <div className="flex justify-end gap-4">
             <button type="button" className="rounded-lg border border-gray-300 px-4 py-2 font-medium">Cancel</button>
-            <button type="submit" className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-500">Save Changes</button>
+            <button type="submit" className="rounded-lg bg-primary px-4 py-2 font-medium text-white hover:bg-primary-hover">Save Changes</button>
           </div>
         </form>
       </div>
@@ -347,33 +348,33 @@ export default function AuthPage() {
     <main className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <h1 className="text-center text-2xl font-bold">Sign In</h1>
-        <p className="mt-2 text-center text-gray-600">Welcome back</p>
+        <p className="mt-2 text-center text-secondary">Welcome back</p>
 
         <form className="mt-8 space-y-6" aria-label="Sign in form">
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
             <input id="email" type="email" required autoComplete="email"
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-blue-500 focus:ring-blue-500" />
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-primary focus:ring-primary" />
           </div>
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-gray-700">Password</label>
             <input id="password" type="password" required autoComplete="current-password"
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-blue-500 focus:ring-blue-500" />
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-primary focus:ring-primary" />
           </div>
           <div className="flex items-center justify-between">
             <label className="flex items-center gap-2">
               <input type="checkbox" className="rounded border-gray-300" />
               <span className="text-sm text-gray-600">Remember me</span>
             </label>
-            <a href="#" className="text-sm text-blue-600 hover:text-blue-500">Forgot password?</a>
+            <a href="#" className="text-sm text-primary hover:text-primary-hover">Forgot password?</a>
           </div>
-          <button type="submit" className="w-full rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-500">
+          <button type="submit" className="w-full rounded-lg bg-primary px-4 py-3 font-semibold text-white hover:bg-primary-hover">
             Sign In
           </button>
         </form>
 
         <p className="mt-6 text-center text-sm text-gray-600">
-          Don't have an account? <a href="#" className="text-blue-600 hover:text-blue-500">Sign up</a>
+          Don't have an account? <a href="#" className="text-primary hover:text-primary-hover">Sign up</a>
         </p>
       </div>
     </main>
@@ -388,12 +389,12 @@ function generate404Page(stack: string): string {
 export default function NotFoundPage() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-4 text-center">
-      <p className="text-6xl font-bold text-blue-600">404</p>
+      <p className="text-6xl font-bold text-primary">404</p>
       <h1 className="mt-4 text-3xl font-bold">Page Not Found</h1>
-      <p className="mt-4 max-w-md text-gray-600">
+      <p className="mt-4 max-w-md text-secondary">
         Sorry, we couldn't find the page you're looking for.
       </p>
-      <a href="/" className="mt-8 rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-500"
+      <a href="/" className="mt-8 rounded-lg bg-primary px-6 py-3 font-semibold text-white hover:bg-primary-hover"
         aria-label="Go back to homepage">
         Go Home
       </a>
@@ -434,7 +435,7 @@ export default function Form({ fields, onSubmit, submitLabel = 'Submit' }: FormP
         <div key={field.name}>
           <label htmlFor={field.name} className="block text-sm font-medium text-gray-700">
             {field.label}
-            {field.required && <span className="text-red-500 ml-1" aria-hidden="true">*</span>}
+            {field.required && <span className="text-error ml-1" aria-hidden="true">*</span>}
           </label>
           <input
             id={field.name}
@@ -443,12 +444,12 @@ export default function Form({ fields, onSubmit, submitLabel = 'Submit' }: FormP
             required={field.required}
             placeholder={field.placeholder}
             aria-required={field.required}
-            className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-blue-500 focus:ring-blue-500"
+            className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-primary focus:ring-primary"
             onChange={(e) => setFormData(prev => ({ ...prev, [field.name]: e.target.value }))}
           />
         </div>
       ))}
-      <button type="submit" className="w-full rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-500">
+      <button type="submit" className="w-full rounded-lg bg-primary px-4 py-3 font-semibold text-white hover:bg-primary-hover">
         {submitLabel}
       </button>
     </form>
@@ -530,9 +531,9 @@ export default function CardGrid({ cards, columns = 3 }: CardGridProps) {
           {card.image && <img src={card.image} alt={\`\${card.title} illustration\`} className="h-48 w-full object-cover" />}
           <div className="p-6">
             <h3 className="text-lg font-semibold">{card.title}</h3>
-            <p className="mt-2 text-sm text-gray-600">{card.description}</p>
+            <p className="mt-2 text-sm text-secondary">{card.description}</p>
             {card.href && (
-              <a href={card.href} className="mt-4 inline-block text-sm font-medium text-blue-600 hover:text-blue-500"
+              <a href={card.href} className="mt-4 inline-block text-sm font-medium text-primary hover:text-primary-hover"
                 aria-label={\`Learn more about \${card.title}\`}>
                 Learn more →
               </a>
@@ -573,7 +574,7 @@ export default function Navigation({ brand, items }: NavigationProps) {
           {items.map((item) => (
             <li key={item.href}>
               <a href={item.href}
-                className={\`text-sm font-medium \${item.active ? 'text-blue-600' : 'text-gray-600 hover:text-gray-900'}\`}
+                className={\`text-sm font-medium \${item.active ? 'text-primary' : 'text-gray-600 hover:text-gray-900'}\`}
                 aria-current={item.active ? 'page' : undefined}>
                 {item.label}
               </a>
@@ -626,12 +627,12 @@ export default function Hero({ title, subtitle, ctaPrimary, ctaSecondary, image 
       <div className="mx-auto flex max-w-7xl flex-col items-center gap-16 lg:flex-row">
         <div className="flex-1 text-center lg:text-left">
           <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">{title}</h1>
-          {subtitle && <p className="mt-6 text-lg text-gray-600">{subtitle}</p>}
+          {subtitle && <p className="mt-6 text-lg text-secondary">{subtitle}</p>}
           {(ctaPrimary || ctaSecondary) && (
             <div className="mt-10 flex flex-wrap justify-center gap-4 lg:justify-start">
               {ctaPrimary && (
                 <a href={ctaPrimary.href}
-                  className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-500"
+                  className="rounded-lg bg-primary px-6 py-3 font-semibold text-white hover:bg-primary-hover"
                   aria-label={ctaPrimary.label}>
                   {ctaPrimary.label}
                 </a>
