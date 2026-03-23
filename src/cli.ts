@@ -8,6 +8,17 @@ program
   .description('AI design guardrail toolkit — Make LLMs better at UI code')
   .version('0.1.0');
 
+// Create project
+program
+  .command('create <name>')
+  .description('Create a new project with Morphic design system built-in')
+  .option('--template <template>', 'Project template (nextjs-tailwind, react-tailwind)', 'nextjs-tailwind')
+  .option('--skip-install', 'Skip npm install')
+  .action(async (name, opts) => {
+    const { createProject } = await import('./create/creator');
+    await createProject(name, { template: opts.template, skip: opts.skipInstall });
+  });
+
 // Phase 1: Design Context
 program
   .command('init')
