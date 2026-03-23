@@ -96,6 +96,16 @@ program
     await validate(files, opts);
   });
 
+// Guidelines generation (for LLMs)
+program
+  .command('guidelines')
+  .description('Generate design system guidelines (markdown files for LLM context)')
+  .option('--output <dir>', 'Output directory', 'guidelines')
+  .action(async (opts) => {
+    const { generateGuidelines } = await import('./guidelines/guidelines-generator');
+    await generateGuidelines(opts);
+  });
+
 // Docs generation
 program
   .command('docs')
